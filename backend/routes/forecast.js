@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 const path = require('path');
 const dayjs = require('dayjs');
 const { Forecast, Product, Sale } = require('../models/database'); // pastikan Sale ada

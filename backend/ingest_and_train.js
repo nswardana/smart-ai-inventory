@@ -18,7 +18,8 @@ const {
   trainAndSaveModel, 
   makeRecentWindow 
 } = require('./services/aiService');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
+
 const { Forecast } = require('./models/database');
 
 const MODELS_DIR = path.join(__dirname, 'models_saved');

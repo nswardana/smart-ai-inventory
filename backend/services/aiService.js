@@ -1,5 +1,5 @@
 const dayjs = require('dayjs');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 const fs = require('fs');
 const path = require('path');
 const { Sale, Forecast } = require('../models/database');
