@@ -1,0 +1,11 @@
+PORT=5001
+NODE_ENV=development
+
+DB_HOST=localhost
+DB_USER=root
+DB_PASS=
+DB_NAME=smart_ai_inventory
+
+# API sumber data eksternal (bisa ubah sesuai Odoo API kamu)
+SALES_API=http://51.79.188.207:9898/sales_ai/3
+PRODUCT_API=http://51.79.188.207:9898/product_ai
