@@ -1,0 +1,61 @@
+# -------------------------
+# Node.js & npm / yarn
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnpm-debug.log*
+
+# -------------------------
+# Environment & config
+# -------------------------
+.env
+.env.local
+.env.*.local
+
+# -------------------------
+# Build output
+# -------------------------
+dist/
+build/
+.out/
+.next/
+.cache/
+coverage/
+
+# -------------------------
+# Logs
+# -------------------------
+logs
+*.log
+*.log.*
+
+# -------------------------
+# OS / Editor files
+# -------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# -------------------------
+# Database & runtime
+# -------------------------
+server/hrdb/db/
+server/hrdb/journal/
+*.sqlite
+*.sqlite3
+
+# -------------------------
+# Misc
+# -------------------------
+*.tgz
+*.zip
+*.tar
+
+

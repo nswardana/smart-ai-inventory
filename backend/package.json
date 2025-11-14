@@ -1,0 +1,41 @@
+{
+  "name": "smart-ai-backend",
+  "version": "1.0.0",
+  "description": "Smart AI Inventory Backend using Node.js, Express, TensorFlow.js, and MySQL",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "train": "node ingest_and_train.js",
+    "dev": "nodemon server.js",
+    "syncCron": "node cronSync.js",
+    "sync": "node syncOdoo.js",
+    "syncDb": "node syncModels"
+
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^4.16.0",
+    "axios": "^1.7.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.10",
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2",
+    "mysql2": "^3.9.2",
+    "node-cron": "^3.0.3",
+    "sequelize": "^6.37.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "keywords": [
+    "ai",
+    "inventory",
+    "tensorflow",
+    "express",
+    "sequelize",
+    "mysql"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
