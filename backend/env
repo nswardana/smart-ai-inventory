@@ -3,7 +3,7 @@ NODE_ENV=development
 
 DB_HOST=localhost
 DB_USER=root
-DB_PASS=
+DB_PASS=Root123!
 DB_NAME=smart_ai_inventory
 
 # API sumber data eksternal (bisa ubah sesuai Odoo API kamu)
