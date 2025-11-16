@@ -75,6 +75,8 @@ async function syncProducts() {
 async function syncSales() {
   try {
     log('💰 Sync penjualan dimulai...');
+    log('URL :' + process.env.SALES_API);
+
     const res = await axios.get(process.env.SALES_API);
     const sales = res.data?.data || [];
 
