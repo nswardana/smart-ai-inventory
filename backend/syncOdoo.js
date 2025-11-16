@@ -170,7 +170,7 @@ async function syncSales() {
     log('🧩 Models synchronized.');
 
     await truncateTables();
-    //await syncProducts(); // optional, bisa diaktifkan bila perlu
+    await syncProducts(); // optional, bisa diaktifkan bila perlu
     await syncSales();
 
     log('🏁 Semua sinkronisasi selesai.');
