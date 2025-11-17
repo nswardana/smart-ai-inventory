@@ -98,34 +98,32 @@ function createDataset(arr, window = 14) {
 /* ======================================================
    4️⃣ Latih dan simpan model LSTM per key
    ====================================================== */
-async function trainAndSaveModel(seriesArray, keyName, modelsDir) {
-  const dataset = createDataset(seriesArray, 14);
-  if (!dataset) return false;
-
-  const model = tf.sequential();
-  model.add(tf.layers.lstm({ units: 64, inputShape: [14, 1] }));
-  model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
-  model.add(tf.layers.dense({ units: 1 }));
-
-  model.compile({
-    optimizer: tf.train.adam(0.001),
-    loss: 'meanAbsoluteError'
-  });
-
-  await model.fit(dataset.xs, dataset.ys, {
-    epochs: 20,
-    batchSize: 8,
-    verbose: 0
-  });
-
-  const safe = keyName.toString().replace(/[^a-z0-9]/gi, '_').substring(0, 120);
-  const dir = path.join(modelsDir, safe);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  await model.save('file://' + dir);
-  return true;
-}
-
+   async function trainAndSaveModel(arr, productName, MODELS_DIR) {
+    const tf = require('@tensorflow/tfjs');
+  
+    const input = tf.tensor2d(arr, [arr.length, 1]);
+    const output = tf.tensor2d(arr, [arr.length, 1]);
+  
+    const model = tf.sequential();
+    model.add(tf.layers.lstm({ units: 20, inputShape: [1, 1] }));
+    model.add(tf.layers.dense({ units: 1 }));
+  
+    model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+  
+    await model.fit(input.reshape([arr.length, 1, 1]), output, { epochs: 10 });
+  
+    // simpan model secara manual karena tfjs-node tidak tersedia
+    const safeName = productName.replace(/[^a-z0-9]/gi, '_');
+    const savePath = path.join(MODELS_DIR, safeName);
+    if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
+  
+    const modelJson = await model.toJSON();
+    fs.writeFileSync(path.join(savePath, 'model.json'), JSON.stringify(modelJson));
+  
+    return model;
+  }
+    
+  
 /* ======================================================
    5️⃣ Ambil 14 hari terakhir untuk prediksi berikutnya
    ====================================================== */
