@@ -5,50 +5,36 @@ const path = require('path');
 const { Sale, Forecast } = require('../models/database');
 
 /* ======================================================
-   1️⃣ Konversi data penjualan menjadi struktur {key: {date: qty}}
-   key bisa product_id atau product_name
+   1️⃣ Konversi data penjualan menjadi {key: {date: qty}}
    ====================================================== */
 function salesToDailySeries(sales, keyOption = 'product_name') {
   const series = {};
   for (const tx of sales) {
     const date = tx.date ? dayjs(tx.date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
-    const key = keyOption === 'product_id'
-      ? tx.product_id || `Unknown_${tx.product_name}`
-      : tx.product_name || `Unknown_${tx.product_id}`;
+    const key = keyOption === 'product_id' ? (tx.product_id || `Unknown_${tx.product_name}`) : (tx.product_name || `Unknown_${tx.product_id}`);
     const qty = Number(tx.qty || 0);
-
     if (!series[key]) series[key] = {};
     series[key][date] = (series[key][date] || 0) + qty;
   }
   return series;
 }
 
-/* ======================================================
-   1a️⃣ Alternatif: date random jika null (90 hari terakhir)
-   ====================================================== */
 function salesToDailySeriesDateRandom(sales, keyOption = 'product_name') {
   const series = {};
   const today = dayjs();
-
   for (const tx of sales) {
-    const randomDaysAgo = Math.floor(Math.random() * 90); // 0..89 hari
-    const date = tx.date ? dayjs(tx.date).format('YYYY-MM-DD') : today.subtract(randomDaysAgo, 'day').format('YYYY-MM-DD');
-
-    const key = keyOption === 'product_id'
-      ? tx.product_id || `Unknown_${tx.product_name}`
-      : tx.product_name || `Unknown_${tx.product_id}`;
-
+    const randomDaysAgo = Math.floor(Math.random() * 90);
+    const date = today.subtract(randomDaysAgo, 'day').format('YYYY-MM-DD');
+    const key = keyOption === 'product_id' ? (tx.product_id || `Unknown_${tx.product_name}`) : (tx.product_name || `Unknown_${tx.product_id}`);
     const qty = Number(tx.qty || 0);
-
     if (!series[key]) series[key] = {};
     series[key][date] = (series[key][date] || 0) + qty;
   }
-
   return series;
 }
 
 /* ======================================================
-   2️⃣ Buat array kontinu dari map tanggal → kuantitas
+   2️⃣ Buat array kontinu dari tanggal → kuantitas
    ====================================================== */
 function makeSeriesArray(map, startDate, endDate) {
   const arr = [];
@@ -56,8 +42,7 @@ function makeSeriesArray(map, startDate, endDate) {
   const end = dayjs(endDate);
   while (d.isBefore(end) || d.isSame(end)) {
     const k = d.format('YYYY-MM-DD');
-    const val = map[k];
-    arr.push(typeof val === 'number' && !isNaN(val) ? val : 0);
+    arr.push(Number(map[k] || 0)); // pastikan number
     d = d.add(1, 'day');
   }
   return arr;
@@ -70,13 +55,13 @@ function createDataset(arr, window = 14) {
   const X = [];
   const y = [];
   for (let i = 0; i + window < arr.length; i++) {
-    const slice = arr.slice(i, i + window).map(v => Number(v) || 0);
+    const slice = arr.slice(i, i + window).map(Number); // pastikan number
     X.push(slice);
-    y.push(Number(arr[i + window]) || 0);
+    y.push(Number(arr[i + window]));
   }
-  if (X.length === 0) return null;
+  if (!X.length) return null;
   return {
-    xs: tf.tensor3d(X, [X.length, window, 1]),
+    xs: tf.tensor3d(X.map(v => v.map(n => [n]))), // shape [batch, window, 1]
     ys: tf.tensor2d(y, [y.length, 1])
   };
 }
@@ -85,22 +70,17 @@ function createDataset(arr, window = 14) {
    4️⃣ Latih dan simpan model LSTM per key
    ====================================================== */
 async function trainAndSaveModel(arr, productName, MODELS_DIR, window = 14) {
-  // Bersihkan arr
-  arr = arr.map(v => (typeof v === 'number' && !isNaN(v) ? v : 0));
-
   const dataset = createDataset(arr, window);
-  if (!dataset) throw new Error(`Data tidak cukup untuk training: ${productName}`);
-
-  const { xs, ys } = dataset;
+  if (!dataset) return null;
 
   const model = tf.sequential();
   model.add(tf.layers.lstm({ units: 20, inputShape: [window, 1] }));
   model.add(tf.layers.dense({ units: 1 }));
-
   model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
-  await model.fit(xs, ys, { epochs: 20, verbose: 0 });
 
-  // simpan manual (JSON)
+  await model.fit(dataset.xs, dataset.ys, { epochs: 10 });
+
+  // simpan model manual
   const safeName = productName.replace(/[^a-z0-9]/gi, '_');
   const savePath = path.join(MODELS_DIR, safeName);
   if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
@@ -112,26 +92,21 @@ async function trainAndSaveModel(arr, productName, MODELS_DIR, window = 14) {
 }
 
 /* ======================================================
-   5️⃣ Ambil window terakhir untuk prediksi berikutnya
+   5️⃣ Ambil 14 hari terakhir untuk prediksi
    ====================================================== */
 function makeRecentWindow(salesMap, startDate, endDate, window = 14) {
-  const arr = makeSeriesArray(salesMap, startDate, endDate);
-  const recent = arr.slice(-window);
-  return recent.map(v => Number(v) || 0);
+  return makeSeriesArray(salesMap, startDate, endDate).slice(-window);
 }
 
 /* ======================================================
-   6️⃣ Jalankan pelatihan otomatis semua produk
+   6️⃣ Jalankan training semua produk
    ====================================================== */
 async function runTraining({ useProductId = false, window = 14 } = {}) {
   const MODELS_DIR = path.join(__dirname, '../models_saved');
   if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
 
   const sales = await Sale.findAll({ raw: true });
-  if (!sales.length) {
-    console.log('⚠️ Tidak ada data penjualan untuk training');
-    return;
-  }
+  if (!sales.length) return console.log('⚠️ Tidak ada data penjualan untuk training');
 
   const keyOption = useProductId ? 'product_id' : 'product_name';
   const daily = salesToDailySeriesDateRandom(sales, keyOption);
@@ -143,16 +118,18 @@ async function runTraining({ useProductId = false, window = 14 } = {}) {
     const arr = makeSeriesArray(dayMap, start, end);
     const total = arr.reduce((a, b) => a + b, 0);
 
-    if (arr.length < window * 2 || total < 1) {
+    if (arr.length < 30 || total < 1) {
       console.log(`⏭️ Skip training: ${key}`);
       continue;
     }
 
     console.log(`🧠 Training model untuk ${key} (${arr.length} hari data)...`);
     const model = await trainAndSaveModel(arr, key, MODELS_DIR, window);
+    if (!model) continue;
 
+    // Predict menggunakan 14 hari terakhir
     const recent = makeRecentWindow(dayMap, start, end, window);
-    const input = tf.tensor3d([recent], [1, recent.length, 1]);
+    const input = tf.tensor3d([recent.map(n => [n])]); // [1, window, 1]
     const forecastValue = model.predict(input).dataSync()[0];
 
     await Forecast.upsert({
