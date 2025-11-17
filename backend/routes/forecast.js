@@ -40,90 +40,50 @@ async function makeRecentWindow(product_id, days = 14) {
   }
   return arr;
 }
-
-/* ======================================================
-   Predict Endpoint — FINAL Linux Version
-====================================================== */
+// ========================
+// Predict endpoint (Linux-safe, NO tfjs-node)
+// ========================
 router.post('/predict', async (req, res) => {
   try {
-    let { product_name, product_id, recent_window } = req.body;
+    const { product_name, recent_window } = req.body;
 
-    // -----------------------------
-    // Validasi input
-    // -----------------------------
-    if (!recent_window || !Array.isArray(recent_window)) {
-      return res.status(400).json({ error: 'recent_window must be an array' });
-    }
-
-    recent_window = recent_window.map(v => Number(v) || 0);
-    if (recent_window.length < 7) {
-      return res.status(400).json({ error: 'recent_window too short (min 7 values)' });
-    }
-
-    if (!product_name && !product_id) {
-      return res.status(400).json({ error: 'product_name or product_id required' });
-    }
-
-    // -----------------------------
-    // Cari nama produk jika pakai product_id
-    // -----------------------------
-    let finalName = product_name;
-
-    if (!finalName && product_id) {
-      const row = await Sale.findOne({
-        where: { product_id },
-        order: [['id', 'DESC']],
-        raw: true
+    if (!product_name || !recent_window) {
+      return res.status(400).json({
+        error: "product_name & recent_window are required"
       });
-      if (!row) return res.status(404).json({ error: 'product not found' });
-      finalName = row.product_name;
     }
 
-    const safeName = finalName.replace(/[^a-z0-9]/gi, '_').substring(0, 120);
-    const modelFile = path.join(MODELS_DIR, safeName, 'model.json');
+    // --- Normalisasi nama file ---
+    const safeName = product_name.replace(/[^a-z0-9]/gi, "_").substring(0, 120);
+    const modelDir = path.join(MODELS_DIR, safeName);
 
-    console.log("📂 Loading model from:", modelFile);
-
-    // =====================================================
-    //  Load model (khusus Linux tanpa tfjs-node)
-    //  Wajib pakai tf.io.fileSystem()
-    // =====================================================
-    let model;
-    try {
-      model = await tf.loadLayersModel(tf.io.fileSystem(modelFile));
-    } catch (err) {
-      console.error("❌ Load model failed:", err);
+    // --- Pastikan model.json ada ---
+    const modelJsonPath = path.join(modelDir, "model.json");
+    if (!fs.existsSync(modelJsonPath)) {
       return res.status(404).json({
-        error: `Model not found for product ${finalName}`,
-        model_path: modelFile
+        error: `Model not found for product: ${product_name}`
       });
     }
 
-    // -----------------------------
-    // Buat tensor input
-    // -----------------------------
-    const inputTensor = tf.tensor3d(
-      [recent_window.map(v => [v])],
-      [1, recent_window.length, 1]
-    );
+    // --- Load Model (pure tfjs, Linux safe) ---
+    const model = await tf.loadLayersModel(`file://${modelJsonPath}`);
+    console.log(`🔍 Loaded model for: ${product_name}`);
 
-    // -----------------------------
-    // Predict
-    // -----------------------------
-    const pred = model.predict(inputTensor);
-    const forecastValue = (await pred.data())[0];
+    // --- Convert input ---
+    const windowSize = recent_window.length;
+    const inputTensor = tf.tensor(recent_window).reshape([1, windowSize, 1]);
 
-    inputTensor.dispose();
-    pred.dispose();
+    // --- Predict ---
+    const prediction = model.predict(inputTensor);
+    const forecastValue = (await prediction.data())[0];
 
     return res.json({
-      product_name: finalName,
-      product_id: product_id || null,
+      product_name,
       forecast_next: forecastValue
     });
 
   } catch (e) {
-    console.error("🔥 Predict Error:", e);
+    console.error("❌ Predict Error:", e);
     return res.status(500).json({ error: e.message });
   }
 });
