@@ -1,8 +1,12 @@
-const fs = require('fs');
+/**
+ * CRON: Train All Product Models (Linux safe, no tfjs-node)
+ */
+
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
-const { sequelize, Sale, Forecast } = require('./models/database');
-const { salesToDailySeries, makeSeriesArray, trainAndSaveModel, makeRecentWindow, runTraining } = require('./services/aiService');
+const { sequelize } = require('./models/database');
+const { runTraining } = require('./services/aiService');
 
 async function main() {
   console.log("🚀 Starting CRON Training Job...");
@@ -11,7 +15,12 @@ async function main() {
     await sequelize.authenticate();
     console.log("✅ DB Connected");
 
-    await runTraining({ useProductId: true });
+    // Folder untuk model
+    const MODELS_DIR = path.join(__dirname, 'models_saved');
+    if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
+
+    // Jalankan training semua produk
+    await runTraining({ useProductId: true, window: 14 });
 
     console.log("🎯 ALL TRAINING FINISHED");
 
