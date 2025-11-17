@@ -56,15 +56,17 @@ async function main() {
 
       console.log(`🧠 Training model: ${productName} (${arr.length} hari)`);
 
-      // Save model
-      await trainAndSaveModel(arr, productName, MODELS_DIR);
+      // Create safe folder name
+      const safeName = productName.replace(/[^a-z0-9]/gi, '_');
+      const modelDir = path.join(MODELS_DIR, safeName);
+      if (!fs.existsSync(modelDir)) fs.mkdirSync(modelDir, { recursive: true });
+
+      // Train and save model
+      await trainAndSaveModel(arr, productName, modelDir);
 
       // Predict
       const recent = makeRecentWindow(dayMap, start, end);
-
-      const safeName = productName.replace(/[^a-z0-9]/gi, '_');
-      const jsonPath = `file://${path.join(MODELS_DIR, safeName, 'model.json')}`;
-
+      const jsonPath = `file://${path.join(modelDir, 'model.json')}`;
       const model = await tf.loadLayersModel(jsonPath);
 
       const input = tf.tensor2d(recent, [1, recent.length]).reshape([1, recent.length, 1]);
