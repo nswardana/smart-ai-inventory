@@ -53,33 +53,33 @@ router.post('/predict', async (req, res) => {
       });
     }
 
-    // --- Normalisasi nama file ---
+    // Sanitized name
     const safeName = product_name.replace(/[^a-z0-9]/gi, "_").substring(0, 120);
     const modelDir = path.join(MODELS_DIR, safeName);
 
-    // --- Pastikan model.json ada ---
     const modelJsonPath = path.join(modelDir, "model.json");
+
     if (!fs.existsSync(modelJsonPath)) {
       return res.status(404).json({
         error: `Model not found for product: ${product_name}`
       });
     }
 
-    // --- Load Model (pure tfjs, Linux safe) ---
-    const model = await tf.loadLayersModel(`file://${modelJsonPath}`);
+    // ========= FIX: LOAD MODEL WITHOUT fetch() =========
+    const handler = tf.io.fileSystem(modelJsonPath);
+    const model = await tf.loadLayersModel(handler);
+
     console.log(`🔍 Loaded model for: ${product_name}`);
 
-    // --- Convert input ---
-    const windowSize = recent_window.length;
-    const inputTensor = tf.tensor(recent_window).reshape([1, windowSize, 1]);
+    // Prepare input
+    const inputTensor = tf.tensor(recent_window).reshape([1, recent_window.length, 1]);
 
-    // --- Predict ---
     const prediction = model.predict(inputTensor);
-    const forecastValue = (await prediction.data())[0];
+    const value = (await prediction.data())[0];
 
     return res.json({
       product_name,
-      forecast_next: forecastValue
+      forecast_next: value
     });
 
   } catch (e) {
@@ -87,6 +87,7 @@ router.post('/predict', async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
 
 /* ======================================================
    List Forecast
