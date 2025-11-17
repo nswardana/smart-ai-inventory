@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 const tf = require('@tensorflow/tfjs'); // pure JS
+const dayjs = require('dayjs');
 
-const { sequelize, Product, Sale, Forecast } = require('./models/database');
+const { sequelize, Sale, Forecast } = require('./models/database');
 const {
   salesToDailySeries,
   makeSeriesArray,
@@ -17,7 +18,7 @@ const {
 
 const MODELS_DIR = path.join(__dirname, 'models_saved');
 
-// Ensure folder exists
+// Pastikan folder models_saved ada
 if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
 
 async function main() {
@@ -27,12 +28,13 @@ async function main() {
     await sequelize.authenticate();
     console.log("✅ DB Connected");
 
-    // Fetch all sales
+    // Ambil semua penjualan
     const sales = await Sale.findAll({
       attributes: ['product_id', 'product_name', 'qty', 'date'],
       raw: true
     });
 
+    // Konversi ke daily series
     const daily = salesToDailySeries(sales, 'product_id');
 
     for (const [productId, dayMap] of Object.entries(daily)) {
@@ -54,22 +56,23 @@ async function main() {
 
       console.log(`🧠 Training model: ${productName} (${arr.length} hari)`);
 
-      // Train model
-      const model = await trainAndSaveModel(arr, productName);
+      // ✅ TRAIN model & kirim MODELS_DIR
+      const model = await trainAndSaveModel(arr, productName, MODELS_DIR);
 
-      // Save model manually (JSON + weights)
+      // Save model manual (JSON + weights)
       const safeName = productName.replace(/[^a-z0-9]/gi, '_');
       const savePath = path.join(MODELS_DIR, safeName);
       if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
 
-      const modelJson = await model.toJSON(); // get JSON structure + weights
+      const modelJson = await model.toJSON(); // ambil struktur + weights
       fs.writeFileSync(path.join(savePath, 'model.json'), JSON.stringify(modelJson));
 
-      // Predict using recent window
+      // Prediksi menggunakan recent window
       const recent = makeRecentWindow(dayMap, start, end);
       const input = tf.tensor2d(recent, [1, recent.length]).reshape([1, recent.length, 1]);
       const forecastValue = model.predict(input).dataSync()[0];
 
+      // Simpan ke Forecast
       await Forecast.upsert({
         product_id: productId,
         product_name: productName,
@@ -90,4 +93,5 @@ async function main() {
   }
 }
 
+// Jalankan main
 main();
