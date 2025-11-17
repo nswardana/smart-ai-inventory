@@ -44,44 +44,42 @@ async function makeRecentWindow(product_id, days = 14) {
 /* ======================================================
    Predict endpoint (Linux-safe, NO fetch!)
 ====================================================== */
-router.post('/predict', async (req, res) => {
+router.post("/predict", async (req, res) => {
   try {
-    const { product_name, recent_window } = req.body;
+    const { productId, window, sales } = req.body;
 
-    if (!product_name || !recent_window) {
-      return res.status(400).json({
-        error: "product_name & recent_window are required"
-      });
+    if (!productId) {
+      return res.status(400).json({ error: "Missing productId" });
     }
 
-    const safeName = product_name.replace(/[^a-z0-9]/gi, "_").substring(0, 120);
-    const modelDir = path.join(MODELS_DIR, safeName);
-    const modelJsonPath = path.resolve(modelDir, "model.json"); // <-- full absolute
+    // Path model
+    const modelPath = `file://${__dirname}/../models_saved/${productId}/model.json`;
 
-    if (!fs.existsSync(modelJsonPath)) {
-      return res.status(404).json({
-        error: `Model not found for product: ${product_name}`
-      });
+    console.log("📦 Loading model:", modelPath);
+
+    let model;
+    try {
+      model = await tf.loadLayersModel(modelPath);
+    } catch (err) {
+      console.error("❌ Failed loading:", err);
+      return res.status(500).json({ error: "Model not found" });
     }
 
-    // === FIX AKHIR: TIDAK ADA FETCH ===
-    const handler = tf.io.fileSystem(modelJsonPath);
-    const model = await tf.loadLayersModel(handler);
+    // Convert sales into tensor input
+    const input = tf.tensor2d([sales.slice(-window)], [1, window]);
 
-    console.log(`🔍 Loaded model OK: ${modelJsonPath}`);
+    // Predict
+    const prediction = model.predict(input);
+    const result = (await prediction.data())[0];
 
-    const inputTensor = tf.tensor(recent_window).reshape([1, recent_window.length, 1]);
-    const prediction = model.predict(inputTensor);
-    const value = (await prediction.data())[0];
-
-    return res.json({
-      product_name,
-      forecast_next: value
+    res.json({
+      productId,
+      forecast: Math.round(result),
     });
 
-  } catch (e) {
-    console.error("❌ Predict Error:", e);
-    return res.status(500).json({ error: e.message });
+  } catch (err) {
+    console.error("❌ Predict Error:", err);
+    res.status(500).json({ error: err.toString() });
   }
 });
 
