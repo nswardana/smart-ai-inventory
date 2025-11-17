@@ -1,11 +1,11 @@
 /**
- * CRON: Train All Product Models
+ * CRON: Train All Product Models (Linux safe, no tfjs-node)
  */
 
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
-const tf = require('@tensorflow/tfjs');
+const tf = require('@tensorflow/tfjs'); // pure JS
 
 const { sequelize, Product, Sale, Forecast } = require('./models/database');
 const {
@@ -18,9 +18,7 @@ const {
 const MODELS_DIR = path.join(__dirname, 'models_saved');
 
 // Ensure folder exists
-if (!fs.existsSync(MODELS_DIR)) {
-  fs.mkdirSync(MODELS_DIR, { recursive: true });
-}
+if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
 
 async function main() {
   console.log("🚀 Starting CRON Training Job...");
@@ -56,19 +54,19 @@ async function main() {
 
       console.log(`🧠 Training model: ${productName} (${arr.length} hari)`);
 
-      // Create safe folder name
+      // Train model
+      const model = await trainAndSaveModel(arr, productName);
+
+      // Save model manually (JSON + weights)
       const safeName = productName.replace(/[^a-z0-9]/gi, '_');
-      const modelDir = path.join(MODELS_DIR, safeName);
-      if (!fs.existsSync(modelDir)) fs.mkdirSync(modelDir, { recursive: true });
+      const savePath = path.join(MODELS_DIR, safeName);
+      if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
 
-      // Train and save model
-      await trainAndSaveModel(arr, productName, modelDir);
+      const modelJson = await model.toJSON(); // get JSON structure + weights
+      fs.writeFileSync(path.join(savePath, 'model.json'), JSON.stringify(modelJson));
 
-      // Predict
+      // Predict using recent window
       const recent = makeRecentWindow(dayMap, start, end);
-      const jsonPath = `file://${path.join(modelDir, 'model.json')}`;
-      const model = await tf.loadLayersModel(jsonPath);
-
       const input = tf.tensor2d(recent, [1, recent.length]).reshape([1, recent.length, 1]);
       const forecastValue = model.predict(input).dataSync()[0];
 
