@@ -109,7 +109,7 @@ async function runTraining({ useProductId = false, window = 14 } = {}) {
   if (!sales.length) return console.log('⚠️ Tidak ada data penjualan untuk training');
 
   const keyOption = useProductId ? 'product_id' : 'product_name';
-  const daily = salesToDailySeriesDateRandom(sales, keyOption);
+  const daily = salesToDailySeries(sales, keyOption);
 
   for (const [key, dayMap] of Object.entries(daily)) {
     const dates = Object.keys(dayMap).sort();

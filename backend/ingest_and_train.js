@@ -20,7 +20,7 @@ async function main() {
     if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
 
     // Jalankan training semua produk
-    await runTraining({ useProductId: true, window: 14 });
+    await runTraining({ useProductId: false, window: 14 });
 
     console.log("🎯 ALL TRAINING FINISHED");
 
