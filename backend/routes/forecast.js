@@ -46,20 +46,17 @@ async function makeRecentWindow(product_id, days = 14) {
 ====================================================== */
 router.post("/predict", async (req, res) => {
   try {
-    const { productId, window, sales } = req.body;
+    const { product_name, window, recent_window } = req.body;
 
-    if (!productId) {
-      return res.status(400).json({ error: "Missing productId" });
+    if (!product_name) {
+      return res.status(400).json({ error: "Missing product_name" });
     }
-    if (!sales || !Array.isArray(sales)) {
-      return res.status(400).json({ error: "Missing sales data array" });
+    if (!recent_window || !Array.isArray(recent_window)) {
+      return res.status(400).json({ error: "Missing recent_window array" });
     }
 
-    // Folder model ID fix
-    const safeId = String(productId).replace(/[^a-z0-9]/gi,'_').toLowerCase();
-
-    // Path model final
-    const modelPath = `file://${path.join(MODELS_DIR, safeId, "model.json")}`;
+    const safeName = product_name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const modelPath = `file://${path.join(MODELS_DIR, safeName, "model.json")}`;
 
     console.log("📦 Loading model:", modelPath);
 
@@ -68,19 +65,17 @@ router.post("/predict", async (req, res) => {
       model = await tf.loadLayersModel(modelPath);
     } catch (err) {
       console.error("❌ Failed loading:", err);
-      return res.status(404).json({ error: "Model file not found" });
+      return res.status(404).json({ error: "Model not found" });
     }
 
-    // Input tensor
-    const arr = sales.slice(-window);
-    const input = tf.tensor3d([arr.map(v => [v])]);  // LSTM expects [1, window, 1]
+    const arr = recent_window.slice(-window);
+    const input = tf.tensor3d([arr.map(v => [v])]);  
 
-    // Predict
     const prediction = model.predict(input);
     const forecastValue = (await prediction.data())[0];
 
     res.json({
-      productId,
+      product_name,
       forecast: Math.round(forecastValue)
     });
 
