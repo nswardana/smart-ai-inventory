@@ -65,31 +65,50 @@ function createDataset(arr, window = 14) {
     ys: tf.tensor2d(y, [y.length, 1])
   };
 }
-
 /* ======================================================
    4️⃣ Latih dan simpan model LSTM per key
    ====================================================== */
-async function trainAndSaveModel(arr, productName, MODELS_DIR, window = 14) {
-  const dataset = createDataset(arr, window);
-  if (!dataset) return null;
-
-  const model = tf.sequential();
-  model.add(tf.layers.lstm({ units: 20, inputShape: [window, 1] }));
-  model.add(tf.layers.dense({ units: 1 }));
-  model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
-
-  await model.fit(dataset.xs, dataset.ys, { epochs: 10 });
-
-  // simpan model manual
-  const safeName = productName.replace(/[^a-z0-9]/gi, '_');
-  const savePath = path.join(MODELS_DIR, safeName);
-  if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
-
-  const modelJson = await model.toJSON();
-  fs.writeFileSync(path.join(savePath, 'model.json'), JSON.stringify(modelJson));
-
-  return model;
-}
+   async function trainAndSaveModel(arr, productName, MODELS_DIR, window = 14) {
+    const dataset = createDataset(arr, window);
+    if (!dataset) return null;
+  
+    const model = tf.sequential();
+    model.add(tf.layers.lstm({ units: 20, inputShape: [window, 1] }));
+    model.add(tf.layers.dense({ units: 1 }));
+    model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+  
+    await model.fit(dataset.xs, dataset.ys, { epochs: 10 });
+  
+    /* =============================
+       SAVE MODEL MANUAL (Linux-safe)
+       ============================= */
+    const safeName = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const savePath = path.join(MODELS_DIR, safeName);
+    if (!fs.existsSync(savePath)) fs.mkdirSync(savePath, { recursive: true });
+  
+    await model.save(
+      tf.io.withSaveHandler(async (artifacts) => {
+        // 👇 file model.json
+        const modelJSON = JSON.stringify({
+          modelTopology: artifacts.modelTopology,
+          weightsManifest: [{
+            paths: ["weights.bin"],
+            weights: artifacts.weightSpecs
+          }]
+        });
+  
+        fs.writeFileSync(path.join(savePath, "model.json"), modelJSON);
+        fs.writeFileSync(path.join(savePath, "weights.bin"), Buffer.from(artifacts.weightData));
+  
+        return { modelArtifactsInfo: artifacts };
+      })
+    );
+  
+    console.log(`💾 Model saved in: ${savePath}`);
+  
+    return model;
+  }
+  
 
 /* ======================================================
    5️⃣ Ambil 14 hari terakhir untuk prediksi

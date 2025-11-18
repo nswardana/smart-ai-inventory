@@ -51,9 +51,15 @@ router.post("/predict", async (req, res) => {
     if (!productId) {
       return res.status(400).json({ error: "Missing productId" });
     }
+    if (!sales || !Array.isArray(sales)) {
+      return res.status(400).json({ error: "Missing sales data array" });
+    }
 
-    // Path model
-    const modelPath = `file://${__dirname}/../models_saved/${productId}/model.json`;
+    // Folder model ID fix
+    const safeId = String(productId).replace(/[^a-z0-9]/gi,'_').toLowerCase();
+
+    // Path model final
+    const modelPath = `file://${path.join(MODELS_DIR, safeId, "model.json")}`;
 
     console.log("📦 Loading model:", modelPath);
 
@@ -62,19 +68,20 @@ router.post("/predict", async (req, res) => {
       model = await tf.loadLayersModel(modelPath);
     } catch (err) {
       console.error("❌ Failed loading:", err);
-      return res.status(500).json({ error: "Model not found" });
+      return res.status(404).json({ error: "Model file not found" });
     }
 
-    // Convert sales into tensor input
-    const input = tf.tensor2d([sales.slice(-window)], [1, window]);
+    // Input tensor
+    const arr = sales.slice(-window);
+    const input = tf.tensor3d([arr.map(v => [v])]);  // LSTM expects [1, window, 1]
 
     // Predict
     const prediction = model.predict(input);
-    const result = (await prediction.data())[0];
+    const forecastValue = (await prediction.data())[0];
 
     res.json({
       productId,
-      forecast: Math.round(result),
+      forecast: Math.round(forecastValue)
     });
 
   } catch (err) {
