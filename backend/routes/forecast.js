@@ -51,18 +51,28 @@ async function loadLocalModel(modelDir) {
   const modelJSON = JSON.parse(fs.readFileSync(modelJsonPath, "utf8"));
   const weightData = fs.readFileSync(weightsBinPath);
 
-  const handler = tf.io.fromMemory(
-    modelJSON.modelTopology,
-    modelJSON.weightsManifest[0].weights,
-    weightData
-  );
+  // Build ModelArtifacts
+  const artifacts = {
+    modelTopology: modelJSON.modelTopology,
+    format: "layers-model",
+    generatedBy: "manual-save",
+    convertedBy: null,
+    weightSpecs: modelJSON.weightsManifest[0].weights,
+    weightData: weightData
+  };
 
+  // Create IOHandler from memory
+  const handler = tf.io.fromMemory(artifacts);
+
+  // Load model
   return await tf.loadLayersModel(handler);
 }
-
 router.post("/predict", async (req, res) => {
   try {
-    const { product_name, window, recent_window } = req.body;
+    const { product_name, recent_window, window } = req.body;
+
+    if (!product_name) return res.status(400).json({ error: "Missing product_name" });
+    if (!Array.isArray(recent_window)) return res.status(400).json({ error: "Missing recent_window array" });
 
     const safeName = product_name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     const modelDir = path.join(MODELS_DIR, safeName);
@@ -78,7 +88,7 @@ router.post("/predict", async (req, res) => {
     }
 
     const arr = recent_window.slice(-window);
-    const input = tf.tensor3d([arr.map(v => [v])]);
+    const input = tf.tensor3d([arr.map(v => [v])]); // LSTM input shape = [1, window, 1]
 
     const prediction = model.predict(input);
     const forecastValue = (await prediction.data())[0];
@@ -93,6 +103,7 @@ router.post("/predict", async (req, res) => {
     res.status(500).json({ error: err.toString() });
   }
 });
+
 
 /* ======================================================
    List Forecast
