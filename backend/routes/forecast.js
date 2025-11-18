@@ -44,32 +44,41 @@ async function makeRecentWindow(product_id, days = 14) {
 /* ======================================================
    Predict endpoint (Linux-safe, NO fetch!)
 ====================================================== */
+async function loadLocalModel(modelDir) {
+  const modelJsonPath = path.join(modelDir, "model.json");
+  const weightsBinPath = path.join(modelDir, "weights.bin");
+
+  const modelJSON = JSON.parse(fs.readFileSync(modelJsonPath, "utf8"));
+  const weightData = fs.readFileSync(weightsBinPath);
+
+  const handler = tf.io.fromMemory(
+    modelJSON.modelTopology,
+    modelJSON.weightsManifest[0].weights,
+    weightData
+  );
+
+  return await tf.loadLayersModel(handler);
+}
+
 router.post("/predict", async (req, res) => {
   try {
     const { product_name, window, recent_window } = req.body;
 
-    if (!product_name) {
-      return res.status(400).json({ error: "Missing product_name" });
-    }
-    if (!recent_window || !Array.isArray(recent_window)) {
-      return res.status(400).json({ error: "Missing recent_window array" });
-    }
-
     const safeName = product_name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-    const modelPath = `file://${path.join(MODELS_DIR, safeName, "model.json")}`;
+    const modelDir = path.join(MODELS_DIR, safeName);
 
-    console.log("📦 Loading model:", modelPath);
+    console.log("📦 Loading model from:", modelDir);
 
     let model;
     try {
-      model = await tf.loadLayersModel(modelPath);
+      model = await loadLocalModel(modelDir);
     } catch (err) {
       console.error("❌ Failed loading:", err);
       return res.status(404).json({ error: "Model not found" });
     }
 
     const arr = recent_window.slice(-window);
-    const input = tf.tensor3d([arr.map(v => [v])]);  
+    const input = tf.tensor3d([arr.map(v => [v])]);
 
     const prediction = model.predict(input);
     const forecastValue = (await prediction.data())[0];
