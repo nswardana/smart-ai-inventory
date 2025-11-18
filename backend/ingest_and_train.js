@@ -18,10 +18,10 @@ async function main() {
      // ============================
     // 🔥 TRUNCATE FORECAST TABLE
     // ============================
-    console.log("🗑️ Truncating forecast table...");
-    await sequelize.query("TRUNCATE TABLE forecast");
-    console.log("✅ Forecast table cleared");
-    
+    console.log("🗑️ Truncating Forecasts table...");
+    await sequelize.query("TRUNCATE TABLE Forecasts");
+    console.log("✅ Forecasts table cleared");
+
     // Folder untuk model
     const MODELS_DIR = path.join(__dirname, 'models_saved');
     if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
