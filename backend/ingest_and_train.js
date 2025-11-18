@@ -15,6 +15,13 @@ async function main() {
     await sequelize.authenticate();
     console.log("✅ DB Connected");
 
+     // ============================
+    // 🔥 TRUNCATE FORECAST TABLE
+    // ============================
+    console.log("🗑️ Truncating forecast table...");
+    await sequelize.query("TRUNCATE TABLE forecast");
+    console.log("✅ Forecast table cleared");
+    
     // Folder untuk model
     const MODELS_DIR = path.join(__dirname, 'models_saved');
     if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
