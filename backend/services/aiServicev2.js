@@ -24,7 +24,7 @@ function inverseScale(value, min, max) {
 }
 
 async function trainModel(productId, window = 14) {
-  const product = await Product.findOne({ where: { id: productId } });
+  const product = await Product.findOne({ where: { product_id: productId } });
   if (!product) throw new Error("Product not found");
 
   const productNameSafe = sanitizeName(product.product_name);
