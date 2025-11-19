@@ -1,17 +1,15 @@
 /**
  * CRON: Train All Product Models + Generate Forecast
  * Using SALES table as primary source (unique product_id)
- * Linux safe (no tfjs-node)
+ * Folder saved as: models_saved/<productId>_<sanitizedName>/
  */
 
-const path = require('path');
-const fs = require('fs');
-require('dotenv').config();
+const path = require("path");
+const fs = require("fs");
+require("dotenv").config();
 
-const { sequelize,Sale,Forecast } = require('./models/database');
-
-
-const { trainModel, forecastNextDays } = require('./services/aiServicev2');
+const { sequelize, Sale, Forecast, Product } = require("./models/database");
+const { trainModel, forecastNextDays } = require("./services/aiServicev2");
 
 async function main() {
   console.log("🚀 Starting CRON Training + Forecast Job...");
@@ -41,15 +39,15 @@ async function main() {
     // ============================
     // 🔍 Ambil unique product_id dari sales
     // ============================
-    const productIds = [...new Set(sales.map(s => s.product_id))];
-
+    const productIds = [...new Set(sales.map((s) => s.product_id))];
     console.log(`📦 Found ${productIds.length} unique products in sales`);
 
     // ============================
     // 📁 Pastikan folder models_saved ada
     // ============================
-    const MODELS_DIR = path.join(__dirname, 'models_saved');
-    if (!fs.existsSync(MODELS_DIR)) fs.mkdirSync(MODELS_DIR, { recursive: true });
+    const MODELS_DIR = path.join(__dirname, "models_saved");
+    if (!fs.existsSync(MODELS_DIR))
+      fs.mkdirSync(MODELS_DIR, { recursive: true });
 
     // ============================
     // 📌 Loop product_id dari SALES
@@ -59,20 +57,49 @@ async function main() {
       console.log(`🔥 Training Model for Product ID: ${productId}`);
       console.log(`==============================`);
 
+      // --------------------------
+      // 🔍 Ambil product_name dari DB
+      // --------------------------
+      const product = await Product.findOne({
+        where: { id: productId },
+        raw: true,
+      });
+
+      if (!product) {
+        console.log(`❌ Product ID ${productId} NOT FOUND`);
+        continue;
+      }
+
+      const productName = product.product_name;
+
+      // --------------------------
       // Step 1: Train Model
-      const trained = await trainModel(productId, 14);
+      // --------------------------
+      const trained = await trainModel(productId, productName, 14);
       if (!trained) {
         console.log(`⚠️ Skip product_id ${productId} — data not enough`);
         continue;
       }
 
-      // Step 2: Forecast N hari ke depan
+      // --------------------------
+      // Step 2: Forecast
+      // --------------------------
       const forecastDays = 7;
-      const predictions = await forecastNextDays(productId, forecastDays, 14);
+      const predictions = await forecastNextDays(
+        productId,
+        productName,
+        forecastDays,
+        14
+      );
 
-      console.log(`📊 Forecast Result for Product ${productId}:`, predictions);
+      console.log(
+        `📊 Forecast Result for Product ${productId} (${productName}):`,
+        predictions
+      );
 
-      // Step 3: Save to DB Forecasts
+      // --------------------------
+      // Step 3: Save Forecast to DB
+      // --------------------------
       for (let i = 0; i < predictions.length; i++) {
         const forecastDate = new Date();
         forecastDate.setDate(forecastDate.getDate() + (i + 1)); // mulai besok
@@ -80,15 +107,16 @@ async function main() {
         await Forecast.create({
           product_id: productId,
           forecast_date: forecastDate,
-          forecast_qty: predictions[i]
+          forecast_qty: predictions[i],
         });
       }
 
-      console.log(`💾 Saved ${forecastDays} forecast rows for product ${productId}`);
+      console.log(
+        `💾 Saved ${forecastDays} forecast rows for product ${productId}`
+      );
     }
 
     console.log("\n🎯 ALL TRAINING + FORECAST FINISHED");
-
   } catch (err) {
     console.error("❌ ERROR:", err);
   } finally {
