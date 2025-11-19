@@ -61,7 +61,7 @@ async function main() {
       // 🔍 Ambil product_name dari DB
       // --------------------------
       const product = await Product.findOne({
-        where: { id: productId },
+        where: { product_id: productId },
         raw: true,
       });
 
